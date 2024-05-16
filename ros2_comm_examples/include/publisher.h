@@ -6,6 +6,7 @@
 #include <future>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rclcpp/logging.hpp"
 #include "sharedmem_msgs/msg/sample_message.hpp"
 
 using namespace std::chrono_literals;
@@ -67,8 +68,10 @@ class MinimalPublisher  : public rclcpp::Node {
     std::uintptr_t msg_address = 0;
     std::uintptr_t data_address = 0;
 
+    std::string msg_type{""};
 #ifdef USING_LOAN_MSG
     // 使用loan msg发布消息
+      msg_type = "loan";
     // 获取要发送的消息
     auto loanedMsg = publisher_->borrow_loaned_message();
     // 判断消息是否可用，可能出现获取消息失败导致消息不可用的情况
@@ -94,6 +97,7 @@ class MinimalPublisher  : public rclcpp::Node {
     }
 #else
     // 不使用loan msg发布消息
+    msg_type = "unique";
     // 创建要发送的消息
     /**
      * 对于intra process的zero copy，需要注意以下几点：
@@ -103,6 +107,7 @@ class MinimalPublisher  : public rclcpp::Node {
      * 如果pub端发布const &类型消息，rclcpp层会使用`const & msg`构造出`unique_ptr msg`，
      * 再使用`unique_ptr`类型的publish接口发布数据，因此存在数据拷贝。
      * https://github.com/ros2/rclcpp/blob/humble/rclcpp/include/rclcpp/publisher.hpp#L302。
+     * 这么做的目的是为了避免出现发布消息的过程中消息被改动？
      * 
      * 2. 创建消息时不进行初始化，避免初始化大块内存，造成性能损失。
      * https://github.com/ros2/rclcpp/blob/humble/rclcpp/include/rclcpp/allocator/allocator_common.hpp#L38
@@ -111,7 +116,7 @@ class MinimalPublisher  : public rclcpp::Node {
         rosidl_runtime_cpp::MessageInitialization::SKIP
     );
     // 判断消息是否可用，可能出现获取消息失败导致消息不可用的情况
-    if (msg) 
+    if (msg)
     {
       RCLCPP_INFO(this->get_logger(), "set msg ts");
       // 对消息的index和time_stamp进行赋值
@@ -124,7 +129,7 @@ class MinimalPublisher  : public rclcpp::Node {
       data_address = reinterpret_cast<std::uintptr_t>(&msg->data[0]);
 
       publisher_->publish(std::move(msg));
-      // 使用publish(const &)接口发布
+      // 使用publish(const &)接口发布消息存在数据拷贝
       // publisher_->publish(std::move(*msg));
 
       // 计数器加一
@@ -139,12 +144,12 @@ class MinimalPublisher  : public rclcpp::Node {
     int delay_us =
       std::chrono::duration_cast<std::chrono::microseconds>(
       std::chrono::steady_clock::now().time_since_epoch()).count() - time_now;
-    RCLCPP_INFO_STREAM(this->get_logger(),
-      "pub"
-#ifdef USING_LOAN_MSG
-      << " loan"
-#endif
-      " msg [" << msg_index
+    RCLCPP_WARN_STREAM_THROTTLE(this->get_logger(),
+      *this->get_clock(),
+      1000,
+      "pub "
+      << msg_type
+      << " msg [" << msg_index
       << "], cost ["
       << std::setprecision(6)
       << delay_us << "]us"

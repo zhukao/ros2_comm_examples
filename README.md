@@ -1,7 +1,7 @@
-## sharedmem_msgs
-
-sharedmem_msgs是ros2中用于共享内存通信的msg包。
-
 ## [ros2_comm_examples](./ros2_comm_examples/README.md)
 
-ros2_comm_examples是不同ros2通信方式的示例。
+ROS2不同通信方式的使用示例，性能测试方法，测试报告，结合数据的通信机制分析。
+
+## sharedmem_msgs
+
+可用于ros2 zero-copy通信的msg包，定义了一个payload大小为4MB的消息。
