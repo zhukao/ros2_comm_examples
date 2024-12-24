@@ -4,12 +4,18 @@ ROS2不同通信方式的使用示例，性能测试方法，测试报告，结�
 
 包含的ROS2通信类型如下：
 
-1. 进程间不使用loan msg的非零拷贝通信
-2. 进程间不使用loan msg的零拷贝通信
-3. 进程间使用loan msg的非零拷贝通信
-4. 进程间使用loan msg的零拷贝通信
+1. 进程间不使用borrow_loaned_message的非零拷贝通信
+2. 进程间不使用borrow_loaned_message的零拷贝通信
+3. 进程间使用borrow_loaned_message的非零拷贝通信
+4. 进程间使用borrow_loaned_message的零拷贝通信
 5. 单进程开启进程内通信
 6. 单进程关闭进程内通信
+
+其他说明：
+
+1. 使用borrow_loaned_message的意思是发布端publisher使用borrow_loaned_message接口申请消息内存，填充消息内容后使用publish接口发布申请到的消息。
+2. 通过设置环境变量`export ROS_DISABLE_LOANED_MESSAGES=0`禁用零拷贝通信。
+
 
 # 测试方法
 
@@ -45,7 +51,7 @@ ROS2不同通信方式的使用示例，性能测试方法，测试报告，结�
 
 # 测试
 
-## 1. 进程间不使用loan msg的非零拷贝通信
+## 1. 进程间不使用borrow_loaned_message的非零拷贝通信
 
 终端1，发布：
 ```bash
@@ -63,7 +69,7 @@ latency: 7440 us
 
 cpu: 21%(11.0+10)
 
-## 2. 进程间不使用loan msg的零拷贝通信
+## 2. 进程间不使用borrow_loaned_message的零拷贝通信
 
 终端1，发布：
 ```bash
@@ -89,13 +95,13 @@ latency: 830 us
 
 cpu: 2.3%(2.0+0.3)
 
-为什么不使用loan msg也能实现零拷贝通信？
+为什么不使用borrow_loaned_message也能实现零拷贝通信？
 
-原因可能是，虽然dds的零拷贝本身并不限制消息类型，只要是POD(Plain Old Data)类型就可以，但是dds提供了专用于零拷贝发布的接口（发布loan msg消息，ros2 rclcpp同样也提供了专用接口），如果使用这个专用接口发布消息，dds认为用户就将这个消息的生命期移交给了dds，因为本身这个loan msg就是使用dds的接口申请的，因此可以直接使用loan msg的内存发布消息，并且发布和订阅段都可以跳过序列化处理。如果使用非loan msg，dds可能会拷贝消息，然后进行序列化，再发布。
+原因可能是，虽然dds的零拷贝本身并不限制消息类型，只要是POD(Plain Old Data)类型就可以，但是dds提供了专用于零拷贝发布的接口（ros2 rclcpp同样也提供了专用接口），如果使用这个专用接口发布消息，dds认为用户就将这个消息的生命期移交给了dds，因为本身这个msg就是使用dds的接口申请的，因此可以直接使用borrow_loaned_message到的内存发布消息，并且发布和订阅段都可以跳过序列化处理。如果不使用borrow_loaned_message，dds可能会拷贝消息，然后进行序列化，再发布。
 
-所以通信lantency能够从3230us降到830us，但是仍然远远高于使用loan msg零拷贝的85us（下文测试结果）。另外从收发消息的内存地址也能看出，启用零拷贝时，如果使用loan msg，收到的消息和发送的消息内存地址相同，而使用非loan msg时，收到消息和发送消息是的内存不同。
+所以通信lantency能够从3230us降到830us，但是仍然远远高于使用borrow_loaned_message零拷贝的85us（下文测试结果）。另外从收发消息的内存地址也能看出，启用零拷贝时，如果使用borrow_loaned_message，收到的消息和发送的消息内存地址相同，而不使用borrow_loaned_message时，收到消息和发送消息是的内存不同。
 
-## 3. 进程间使用loan msg非零拷贝通信
+## 3. 进程间使用borrow_loaned_message非零拷贝通信
 
 以零拷贝方式发布消息，但是不启用零拷贝。
 
@@ -113,12 +119,12 @@ latency: 9030 us
 
 cpu: 24.3%(14.3+10)
 
-对于非零拷贝通信，不使用loan msg通信的lantency为7440us，而使用loan msg通信的lantency反而更高。
+对于非零拷贝通信，不使用borrow_loaned_message通信的lantency为7440us，而使用borrow_loaned_message通信的lantency反而更高。
 
 原因？TODO
 
 
-## 4. 进程间使用loan msg的零拷贝通信
+## 4. 进程间使用borrow_loaned_message的零拷贝通信
 
 ```bash
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
@@ -351,16 +357,16 @@ cpu(%): 0.5
 
 | 通信类型 | latency (us) | CPU占用(%) |
 | ------------ | ------ | ---------- |
-| 进程间不使用loan msg的非零拷贝通信 | 7440 | 21.0 |
-| 进程间不使用loan msg的零拷贝通信 | 830 | 2.3 |
-| 进程间使用loan msg的非零拷贝通信 | 9030 | 24.3 |
-| 进程间使用loan msg的零拷贝通信 | 85<br />112, 116 | 0.6<br />0.9 |
+| 进程间不使用borrow_loaned_message的非零拷贝通信 | 7440 | 21.0 |
+| 进程间不使用borrow_loaned_message的零拷贝通信 | 830 | 2.3 |
+| 进程间使用borrow_loaned_message的非零拷贝通信 | 9030 | 24.3 |
+| 进程间使用borrow_loaned_message的零拷贝通信 | 85<br />112, 116 | 0.6<br />0.9 |
 | **单进程开启进程内通信** | 44<br />57, 68 | 0.3<br />0.3 |
 | 单进程关闭进程内通信 | 3100<br />3140, 5400 | 8.3<br />13.7 |
 
 其中后三组测试结果包含一个和两个订阅的情况。
 
-通过对比看到，**进程内通信方式**表现出最优性能，其次是**使用loan msg的零拷贝通信方式**，**进程间使用loan msg的非零拷贝通信方式**的性能最差。
+通过对比看到，**进程内通信方式**表现出最优性能，其次是**使用borrow_loaned_message的零拷贝通信方式**，**进程间使用borrow_loaned_message的非零拷贝通信方式**的性能最差。
 
 # 总结
 
